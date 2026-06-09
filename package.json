@@ -1,0 +1,28 @@
+{
+  "name": "prime-picks-backend",
+  "version": "1.0.0",
+  "description": "Prime Picks MLB sports betting analytics backend",
+  "scripts": {
+    "start": "ts-node --project tsconfig.json src/api/mlbPicks.endpoint.ts",
+    "build": "tsc",
+    "test": "jest --runInBand --forceExit",
+    "test:coverage": "jest --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.11.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "roots": ["<rootDir>/tests"],
+    "collectCoverageFrom": ["src/**/*.ts"]
+  }
+}
