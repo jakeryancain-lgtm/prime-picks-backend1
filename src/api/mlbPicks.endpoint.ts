@@ -78,6 +78,30 @@ function createNodeSupabaseClient(url: string, key: string) {
   return {
     from(table: string) {
       return {
+        select(cols: string) {
+          const filters: Array<{ col: string; val: string }> = [];
+          const _cols = cols;
+          const builder = {
+            eq(col: string, val: string) { filters.push({ col, val }); return builder; },
+            async limit(n: number) {
+              const params = new URLSearchParams();
+              if (_cols && _cols !== '*') params.set('select', _cols);
+              for (const f of filters) params.set(f.col, `eq.${f.val}`);
+              params.set('limit', String(n));
+              try {
+                const res = await fetch(`${url}/rest/v1/${table}?${params}`, {
+                  headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' },
+                });
+                if (!res.ok) return { data: null, error: { message: `HTTP ${res.status}` } };
+                return { data: await res.json() as unknown[], error: null };
+              } catch (e: unknown) {
+                return { data: null, error: { message: e instanceof Error ? e.message : String(e) } };
+              }
+            },
+          };
+          return builder;
+        },
+
         async insert(rows: unknown[]) {
           if (rows.length === 0) return { data: [], error: null };
           try {
@@ -215,8 +239,16 @@ export async function handleMLBPicksRequest(
     if (supabaseUrl && serviceKey) {
       handlerInput.supabaseClient = createNodeSupabaseClient(supabaseUrl, serviceKey);
     } else {
-      // Silently downgrade — warn in response but don't fail
+      // Downgrade save to false and surface a clear warning — never silent
       handlerInput.save = false;
+      const missing: string[] = [];
+      if (!supabaseUrl) missing.push('SUPABASE_URL');
+      if (!serviceKey)  missing.push('SUPABASE_SERVICE_ROLE_KEY');
+      // We can't add to handlerResponse yet — inject a special key that the
+      // augmented response block below will pick up
+      (handlerInput as unknown as Record<string, unknown>)['_saveDegradedWarning'] =
+        `save=true was requested but ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not set. ` +
+        'Picks were NOT saved. Set these environment variables on your Railway/Supabase deployment.';
     }
   }
 
@@ -224,8 +256,15 @@ export async function handleMLBPicksRequest(
   const handlerResponse = await getMLBPicksHandler(handlerInput);
 
   // ── Augment with matcher metadata ─────────────────────────────────────────
+  // Surface save-degraded warning if credentials were missing
+  const saveDegradedWarning =
+    (handlerInput as unknown as Record<string, unknown>)['_saveDegradedWarning'] as string | undefined;
+
   const fullResponse = {
     ...handlerResponse,
+    warnings: saveDegradedWarning
+      ? [...(handlerResponse.warnings ?? []), saveDegradedWarning]
+      : (handlerResponse.warnings ?? []),
     missingModelPicks: missingModelPicks.map(p => ({
       gameId:   p.gameId,
       team:     p.team,
