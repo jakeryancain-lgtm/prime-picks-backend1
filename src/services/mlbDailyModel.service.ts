@@ -8,6 +8,7 @@ import {
 } from '../adapters/mlbModel.adapter';
 import type { NormalizedPick } from '../adapters/oddsApi.adapter';
 import { runMLBPipeline, type PipelineConfig } from '../mlbPipeline';
+import { filterPregameOnly, buildLiveGameWarning } from '../adapters/mlbGameFilter';
 import type { RankedOutput }     from '../engines/ranking.engine';
 import type { ProcessedMLBPick } from '../mlbPipeline';
 import {
@@ -37,13 +38,15 @@ import type { SupabaseClientLike } from './supabase.types';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface DailyModelCycleInput {
-    modelVersionId:      string;
-    normalizedOddsPicks: NormalizedPick[];
-    structuredStats:     TeamGameStats[];
-    date?:               string;
-    supabaseClient?:     SupabaseClientLike;
-    pipelineConfig?:     PipelineConfig;
+  /** ISO date string for this slate e.g. '2025-06-10'. Used as prediction_date. */
+  date?:                string;
+  modelVersionId:       string;
+  normalizedOddsPicks:  NormalizedPick[];
+  structuredStats:      TeamGameStats[];
+  supabaseClient?:      SupabaseClientLike;
+  pipelineConfig?:      PipelineConfig;
 }
+
 export interface DailyModelCycleSummary {
   totalOddsPicks:      number;
   totalModelRecords:   number;
@@ -53,6 +56,7 @@ export interface DailyModelCycleSummary {
   failedPicks:         number;
   noOddsPicks:         number;
   savedRows:           number;
+  excludedLiveGames:   number;
 }
 
 export interface DailyModelCycleResult {
@@ -63,6 +67,7 @@ export interface DailyModelCycleResult {
   modelAttachErrors:   Array<{ pickKey: string; message: string }>;
   saveResult?:         SaveResult;
   summary:             DailyModelCycleSummary;
+  excludedLiveGameWarning: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,8 +114,13 @@ export async function runDailyMLBModelCycle(
     input.modelVersionId,
   );
 
+  // ── Stage 2.5: filter out live / non-pregame picks ───────────────────────
+  const filterResult = filterPregameOnly(readyPicks);
+  const pregamePicks = filterResult.allowed;
+  const excludedLiveGameWarning = buildLiveGameWarning(filterResult.excludedCount);
+
   // ── Stage 3: run pipeline ─────────────────────────────────────────────────
-  const rawPicks = readyPicks.map((p, i) => ({
+  const rawPicks = pregamePicks.map((p, i) => ({
     ...p,
     id:              `${input.modelVersionId}:${p.gameId}:${p.team}:${p.betType}:${i}`,
     modelVersionId:  p.modelVersionId ?? input.modelVersionId,
@@ -124,10 +134,7 @@ export async function runDailyMLBModelCycle(
   let saveResult: SaveResult | undefined;
 
   if (input.supabaseClient) {
-    const rows = mapPipelineOutputToDbRows(
-  pipelineOutput,
-  input.date ?? new Date().toISOString().slice(0, 10),
-);
+    const rows = mapPipelineOutputToDbRows(pipelineOutput, input.date ?? new Date().toISOString().slice(0, 10));
     saveResult  = await savePredictions(rows, input.supabaseClient);
   }
 
@@ -147,6 +154,7 @@ export async function runDailyMLBModelCycle(
     failedPicks:         pipelineOutput.failedPicks.length,
     noOddsPicks:         pipelineOutput.noOddsPicks.length,
     savedRows:           saveResult?.savedCount ?? 0,
+    excludedLiveGames:   filterResult.excludedCount,
   };
 
   return {
@@ -157,5 +165,6 @@ export async function runDailyMLBModelCycle(
     modelAttachErrors,
     saveResult,
     summary,
+    excludedLiveGameWarning,
   };
 }

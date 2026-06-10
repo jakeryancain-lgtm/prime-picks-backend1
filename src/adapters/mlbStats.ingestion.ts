@@ -59,6 +59,12 @@ interface RawScheduleTeamEntry {
 interface RawScheduleGame {
   gamePk:    number;
   gameDate:  string;
+  status?: {
+    abstractGameState?: string;  // "Preview", "Live", "Final"
+    detailedState?:     string;  // "Scheduled", "In Progress", "Final", "Postponed", etc.
+    codedGameState?:    string;
+    statusCode?:        string;
+  };
   teams: {
     home: RawScheduleTeamEntry;
     away: RawScheduleTeamEntry;
@@ -128,15 +134,18 @@ interface RawPitcherResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface GameScheduleEntry {
-  gamePk:         number;
-  gameDate:       string;
-  homeTeamId:     number;
-  homeTeamName:   string;
-  awayTeamId:     number;
-  awayTeamName:   string;
-  homePitcherId?: number;
+  gamePk:           number;
+  /** ISO-8601 UTC game start time (same as gameDate from MLB API). */
+  gameDate:         string;
+  /** The MLB official detailedState e.g. "Scheduled", "In Progress", "Final". */
+  gameStatus?:      string;
+  homeTeamId:       number;
+  homeTeamName:     string;
+  awayTeamId:       number;
+  awayTeamName:     string;
+  homePitcherId?:   number;
   homePitcherName?: string;
-  awayPitcherId?: number;
+  awayPitcherId?:   number;
   awayPitcherName?: string;
 }
 
@@ -200,7 +209,7 @@ export async function fetchTodaysGames(
   date:    string,
   fetchFn: FetchFn = fetch as FetchFn,
 ): Promise<GameScheduleEntry[]> {
-  const url = `${MLB_STATS_BASE}/schedule?sportId=1&date=${date}&hydrate=team,probablePitcher`;
+  const url = `${MLB_STATS_BASE}/schedule?sportId=1&date=${date}&hydrate=team,probablePitcher,status`;
   const response = await fetchFn(url);
 
   if (!response.ok) {
@@ -215,6 +224,7 @@ export async function fetchTodaysGames(
       games.push({
         gamePk:          game.gamePk,
         gameDate:        game.gameDate,
+        gameStatus:      game.status?.detailedState ?? game.status?.abstractGameState,
         homeTeamId:      game.teams.home.team.id,
         homeTeamName:    game.teams.home.team.name,
         awayTeamId:      game.teams.away.team.id,
@@ -552,6 +562,8 @@ export async function assembleTeamGameStats(
         betType:            'moneyline',
         marketType:         'moneyline',
         isHome:             t.isHome,
+        gameStatus:         game.gameStatus,
+        gameDateTime:       game.gameDate,
 
         teamWinPct:         standing?.winPct,
         opponentWinPct:     oppStanding?.winPct,
