@@ -221,7 +221,7 @@ export async function getMLBPicksHandler(
   noOddsPicks: 0,
   savedRows: 0,
   excludedLiveGames: 0,
-}
+},
       warnings,
       errors: validationErrors,
       savedRows: 0,
