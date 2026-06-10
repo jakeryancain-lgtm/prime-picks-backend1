@@ -124,7 +124,10 @@ export async function runDailyMLBModelCycle(
   let saveResult: SaveResult | undefined;
 
   if (input.supabaseClient) {
-    const rows = mapPipelineOutputToDbRows(pipelineOutput);
+    const rows = mapPipelineOutputToDbRows(
+  pipelineOutput,
+  input.date ?? new Date().toISOString().slice(0, 10),
+);
     saveResult  = await savePredictions(rows, input.supabaseClient);
   }
 
