@@ -37,13 +37,13 @@ import type { SupabaseClientLike } from './supabase.types';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface DailyModelCycleInput {
-  modelVersionId:       string;
-  normalizedOddsPicks:  NormalizedPick[];
-  structuredStats:      TeamGameStats[];
-  supabaseClient?:      SupabaseClientLike;
-  pipelineConfig?:      PipelineConfig;
+    modelVersionId:      string;
+    normalizedOddsPicks: NormalizedPick[];
+    structuredStats:     TeamGameStats[];
+    date?:               string;
+    supabaseClient?:     SupabaseClientLike;
+    pipelineConfig?:     PipelineConfig;
 }
-
 export interface DailyModelCycleSummary {
   totalOddsPicks:      number;
   totalModelRecords:   number;
