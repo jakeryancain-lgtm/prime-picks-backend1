@@ -114,9 +114,31 @@ class HttpSupabaseClient implements SupabaseClientLike {
       preferParts.push('return=representation');
       const prefer = preferParts.join(',');
 
+      // When ignoring duplicates on model_predictions, PostgREST needs the
+      // on_conflict query parameter pointing to the composite UNIQUE constraint
+      // columns. Without it, PostgREST defaults to the primary key (id), finds
+      // no conflict (every new row has a new UUID), inserts all rows, and then
+      // the DB itself raises the unique constraint violation.
+      // The on_conflict columns must exactly match the uq_prediction_identity
+      // constraint defined in schema.sql.
+      let endpoint = `${url}/rest/v1/${table}`;
+      if (options?.ignoreDuplicates && table === 'model_predictions') {
+        const onConflict = [
+          'model_version_id',
+          'sport',
+          'league',
+          'game_id',
+          'team',
+          'bet_type',
+          'market_type',
+          'prediction_date',
+        ].join(',');
+        endpoint = `${endpoint}?on_conflict=${onConflict}`;
+      }
+
       let response: Response;
       try {
-        response = await fetch(`${url}/rest/v1/${table}`, {
+        response = await fetch(endpoint, {
           method:  'POST',
           headers: {
             'Content-Type':  'application/json',

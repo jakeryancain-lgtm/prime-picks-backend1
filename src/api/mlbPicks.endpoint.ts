@@ -102,16 +102,23 @@ function createNodeSupabaseClient(url: string, key: string) {
           return builder;
         },
 
-        async insert(rows: unknown[]) {
+        async insert(rows: unknown[], opts?: { ignoreDuplicates?: boolean }) {
           if (rows.length === 0) return { data: [], error: null };
           try {
-            const response = await fetch(`${url}/rest/v1/${table}`, {
+            const prefer = opts?.ignoreDuplicates
+              ? 'resolution=ignore-duplicates,return=representation'
+              : 'return=representation';
+            let endpoint = `${url}/rest/v1/${table}`;
+            if (opts?.ignoreDuplicates && table === 'model_predictions') {
+              endpoint += '?on_conflict=model_version_id,sport,league,game_id,team,bet_type,market_type,prediction_date';
+            }
+            const response = await fetch(endpoint, {
               method:  'POST',
               headers: {
                 'Content-Type':  'application/json',
                 'apikey':         key,
                 'Authorization': `Bearer ${key}`,
-                'Prefer':        'return=representation',
+                'Prefer':        prefer,
               },
               body: JSON.stringify(rows),
             });
