@@ -81,6 +81,18 @@ export interface TeamGameStats {
   weatherAdjustment?: number;
 
   /**
+   * Official MLB game status from the Stats API e.g. "Scheduled", "In Progress", "Final".
+   * Used by mlbGameFilter.ts to exclude live/final games before ranking.
+   */
+  gameStatus?:  string;
+
+  /**
+   * ISO-8601 UTC game start time from the MLB Stats API.
+   * Used by mlbGameFilter.ts to exclude games that have already started by wall-clock time.
+   */
+  gameDateTime?: string;
+
+  /**
    * Effective sample size for confidence and risk scoring.
    * Populated by mlbStats.ingestion.ts as min(teamGamesPlayed, pitcherSeasonStarts).
    * Falls back to teamGamesPlayed alone when pitcher data is unavailable.
